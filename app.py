@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,6 +25,13 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def add_column_if_missing(conn: sqlite3.Connection, table_name: str, column_sql: str, column_name: str) -> None:
+    columns = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    existing = {col[1] for col in columns}
+    if column_name not in existing:
+        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_sql}")
+
+
 def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(
@@ -34,6 +41,7 @@ def init_db() -> None:
                 vorname TEXT NOT NULL,
                 nachname TEXT NOT NULL,
                 position TEXT,
+                soll_stunden REAL NOT NULL DEFAULT 40,
                 erstellt_am TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
@@ -52,10 +60,13 @@ def init_db() -> None:
             );
             """
         )
+        add_column_if_missing(conn, "workers", "soll_stunden REAL NOT NULL DEFAULT 40", "soll_stunden")
 
 
 def parse_date(value: str) -> str:
-    datetime.strptime(value, "%Y-%m-%d")
+    dt = datetime.strptime(value, "%Y-%m-%d").date()
+    if dt > date.today():
+        raise ValueError("future_date")
     return value
 
 
@@ -127,7 +138,7 @@ class AppHandler(SimpleHTTPRequestHandler):
     def list_workers(self) -> None:
         with get_connection() as conn:
             rows = conn.execute(
-                "SELECT id, vorname, nachname, position, erstellt_am FROM workers ORDER BY nachname, vorname"
+                "SELECT id, vorname, nachname, position, soll_stunden, erstellt_am FROM workers ORDER BY nachname, vorname"
             ).fetchall()
         self.send_json(rows_to_dict(rows))
 
@@ -136,16 +147,24 @@ class AppHandler(SimpleHTTPRequestHandler):
         vorname = (data.get("vorname") or "").strip()
         nachname = (data.get("nachname") or "").strip()
         position = (data.get("position") or "").strip() or None
+
+        try:
+            soll_stunden = float(data.get("soll_stunden"))
+        except (TypeError, ValueError):
+            return self.send_json({"error": "Soll-Stunden müssen eine Zahl sein."}, 400)
+
         if not vorname or not nachname:
             return self.send_json({"error": "Vorname und Nachname sind erforderlich."}, 400)
+        if soll_stunden <= 0:
+            return self.send_json({"error": "Soll-Stunden müssen größer als 0 sein."}, 400)
 
         with get_connection() as conn:
             worker_id = conn.execute(
-                "INSERT INTO workers(vorname, nachname, position) VALUES (?, ?, ?)",
-                (vorname, nachname, position),
+                "INSERT INTO workers(vorname, nachname, position, soll_stunden) VALUES (?, ?, ?, ?)",
+                (vorname, nachname, position, soll_stunden),
             ).lastrowid
             row = conn.execute(
-                "SELECT id, vorname, nachname, position, erstellt_am FROM workers WHERE id = ?",
+                "SELECT id, vorname, nachname, position, soll_stunden, erstellt_am FROM workers WHERE id = ?",
                 (worker_id,),
             ).fetchone()
         self.send_json({k: row[k] for k in row.keys()}, 201)
@@ -156,18 +175,26 @@ class AppHandler(SimpleHTTPRequestHandler):
         vorname = (data.get("vorname") or "").strip()
         nachname = (data.get("nachname") or "").strip()
         position = (data.get("position") or "").strip() or None
+
+        try:
+            soll_stunden = float(data.get("soll_stunden"))
+        except (TypeError, ValueError):
+            return self.send_json({"error": "Soll-Stunden müssen eine Zahl sein."}, 400)
+
         if not vorname or not nachname:
             return self.send_json({"error": "Vorname und Nachname sind erforderlich."}, 400)
+        if soll_stunden <= 0:
+            return self.send_json({"error": "Soll-Stunden müssen größer als 0 sein."}, 400)
 
         with get_connection() as conn:
             cursor = conn.execute(
-                "UPDATE workers SET vorname = ?, nachname = ?, position = ? WHERE id = ?",
-                (vorname, nachname, position, worker_id),
+                "UPDATE workers SET vorname = ?, nachname = ?, position = ?, soll_stunden = ? WHERE id = ?",
+                (vorname, nachname, position, soll_stunden, worker_id),
             )
             if cursor.rowcount == 0:
                 return self.send_json({"error": "Mitarbeiter wurde nicht gefunden."}, 404)
             row = conn.execute(
-                "SELECT id, vorname, nachname, position, erstellt_am FROM workers WHERE id = ?",
+                "SELECT id, vorname, nachname, position, soll_stunden, erstellt_am FROM workers WHERE id = ?",
                 (worker_id,),
             ).fetchone()
         self.send_json({k: row[k] for k in row.keys()})
@@ -188,7 +215,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         referenz = params.get("referenz", [None])[0]
 
         sql = (
-            "SELECT e.id, e.worker_id, w.vorname, w.nachname, e.datum, e.startzeit, e.endzeit, "
+            "SELECT e.id, e.worker_id, w.vorname, w.nachname, w.soll_stunden, e.datum, e.startzeit, e.endzeit, "
             "e.pause_minuten, e.status, e.notiz, e.erstellt_am "
             "FROM work_entries e JOIN workers w ON w.id = e.worker_id"
         )
@@ -202,12 +229,14 @@ class AppHandler(SimpleHTTPRequestHandler):
             try:
                 if zeitraum == "woche":
                     year, week = referenz.split("-W")
-                    conditions.append("strftime('%Y', e.datum) = ? AND strftime('%W', e.datum) = ?")
-                    args.extend([year, f"{max(int(week)-1,0):02d}"])
+                    start = date.fromisocalendar(int(year), int(week), 1)
+                    ende = date.fromisocalendar(int(year), int(week), 7)
+                    conditions.append("e.datum >= ? AND e.datum <= ?")
+                    args.extend([start.isoformat(), ende.isoformat()])
                 elif zeitraum == "jahr":
-                    int(referenz)
+                    year = int(referenz)
                     conditions.append("strftime('%Y', e.datum) = ?")
-                    args.append(referenz)
+                    args.append(f"{year:04d}")
                 else:
                     datetime.strptime(referenz, "%Y-%m")
                     conditions.append("strftime('%Y-%m', e.datum) = ?")
@@ -232,7 +261,11 @@ class AppHandler(SimpleHTTPRequestHandler):
             pause = int(data.get("pause_minuten") or 0)
             status = (data.get("status") or "").strip().lower()
             notiz = (data.get("notiz") or "").strip() or None
-        except (TypeError, ValueError):
+        except ValueError as err:
+            if str(err) == "future_date":
+                return None, {"error": "Es können keine Stunden für zukünftige Tage erfasst werden."}
+            return None, {"error": "Eingaben konnten nicht verarbeitet werden."}
+        except TypeError:
             return None, {"error": "Eingaben konnten nicht verarbeitet werden."}
 
         if status not in VALID_STATUS:

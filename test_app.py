@@ -2,7 +2,7 @@ import json
 import threading
 import time
 import unittest
-from urllib import request
+from urllib import error, request
 
 from app import run_server
 
@@ -21,13 +21,20 @@ class ApiTests(unittest.TestCase):
             data = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
         req = request.Request(f"http://127.0.0.1:8123{path}", method=method, data=data, headers=headers)
-        with request.urlopen(req) as res:
-            body = res.read()
-            return res.status, json.loads(body.decode("utf-8")) if body else None
+        try:
+            with request.urlopen(req) as res:
+                body = res.read()
+                return res.status, json.loads(body.decode("utf-8")) if body else None
+        except error.HTTPError as exc:
+            body = exc.read()
+            return exc.code, json.loads(body.decode("utf-8")) if body else None
 
-    def test_worker_and_entry_crud(self):
-        status, worker = self.api("/api/workers", "POST", {"vorname": "Max", "nachname": "Muster", "position": "Lager"})
+    def test_worker_and_entry_crud_and_filters(self):
+        status, worker = self.api("/api/workers", "POST", {
+            "vorname": "Max", "nachname": "Muster", "position": "Lager", "soll_stunden": 38.5
+        })
         self.assertEqual(status, 201)
+        self.assertEqual(worker["soll_stunden"], 38.5)
 
         status, workers = self.api("/api/workers")
         self.assertEqual(status, 200)
@@ -44,9 +51,31 @@ class ApiTests(unittest.TestCase):
         })
         self.assertEqual(status, 201)
 
-        status, entries = self.api("/api/entries?zeitraum=monat&referenz=2026-01")
+        status, entries_month = self.api("/api/entries?zeitraum=monat&referenz=2026-01")
         self.assertEqual(status, 200)
-        self.assertTrue(any(e["id"] == entry["id"] for e in entries))
+        self.assertTrue(any(e["id"] == entry["id"] for e in entries_month))
+
+        status, entries_week = self.api("/api/entries?zeitraum=woche&referenz=2026-W03")
+        self.assertEqual(status, 200)
+        self.assertTrue(any(e["id"] == entry["id"] for e in entries_week))
+
+    def test_future_date_blocked(self):
+        status, worker = self.api("/api/workers", "POST", {
+            "vorname": "Eva", "nachname": "Zukunft", "position": "Test", "soll_stunden": 40
+        })
+        self.assertEqual(status, 201)
+
+        status, payload = self.api("/api/entries", "POST", {
+            "worker_id": worker["id"],
+            "datum": "2999-01-01",
+            "status": "anwesend",
+            "startzeit": "08:00",
+            "endzeit": "10:00",
+            "pause_minuten": 0,
+            "notiz": "Darf nicht"
+        })
+        self.assertEqual(status, 400)
+        self.assertIn("zukünftige Tage", payload["error"])
 
 
 if __name__ == "__main__":

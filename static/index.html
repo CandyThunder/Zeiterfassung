@@ -8,25 +8,29 @@
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>Zeiterfassung</h1>
-      <p>Mitarbeiter und Arbeitszeiten verwalten</p>
+    <header class="header-row">
+      <div>
+        <h1>Zeiterfassung</h1>
+        <p>Arbeitszeiten erfassen und auswerten</p>
+      </div>
+      <button type="button" id="toggleWorkers" class="secondary gear-btn" title="Mitarbeiter verwalten">⚙️ Mitarbeiter</button>
     </header>
 
-    <section class="panel">
-      <h2>Mitarbeiter</h2>
+    <section class="panel" id="workerPanel" hidden>
+      <h2>Mitarbeiterverwaltung</h2>
       <form id="workerForm" class="form-grid">
         <input type="hidden" id="workerId">
         <label>Vorname<input id="vorname" required></label>
         <label>Nachname<input id="nachname" required></label>
         <label>Position<input id="position"></label>
+        <label>Soll-Stunden / Woche<input id="sollStunden" type="number" min="0.5" step="0.5" value="40" required></label>
         <div class="actions">
           <button type="submit">Speichern</button>
           <button type="button" id="workerReset" class="secondary">Zurücksetzen</button>
         </div>
       </form>
       <table>
-        <thead><tr><th>Name</th><th>Position</th><th>Aktionen</th></tr></thead>
+        <thead><tr><th>Name</th><th>Position</th><th>Soll/Woche</th><th>Aktionen</th></tr></thead>
         <tbody id="workerTable"></tbody>
       </table>
     </section>

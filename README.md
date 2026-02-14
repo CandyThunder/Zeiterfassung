@@ -13,6 +13,9 @@ Moderne Anwendung zur Verwaltung von:
   - Auswertung nach Kalenderwoche, Monat oder Jahr
 - **Lokale Speicherung** in **SQLite** (`data/zeiterfassung.db`)
 - **Komplette Oberfläche auf Deutsch**
+- **Soll-Stunden je Mitarbeiter** (Wochenziel) inkl. Vergleich in der Auswertung
+- **Keine Buchung in der Zukunft** (Frontend + Backend-Validierung)
+- **Wöchentliche Ansicht korrigiert** (ISO-Kalenderwoche)
 
 ## Muss Python installiert sein?
 
