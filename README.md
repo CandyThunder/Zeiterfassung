@@ -16,6 +16,8 @@ Moderne Anwendung zur Verwaltung von:
 - **Soll-Stunden je Mitarbeiter** (Wochenziel) inkl. Vergleich in der Auswertung
 - **Keine Buchung in der Zukunft** (Frontend + Backend-Validierung)
 - **Wöchentliche Ansicht korrigiert** (ISO-Kalenderwoche)
+- **Krank/Urlaub-Logik praxisnah**: nicht als Ist-Zeit, aber als angerechnete Abwesenheit im Zeitkonto
+- **Ruhiges Praxis-Design**: reduzierte, freundliche Farbgebung ohne Bilder
 
 ## Muss Python installiert sein?
 

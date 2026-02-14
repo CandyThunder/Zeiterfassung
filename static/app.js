@@ -8,6 +8,7 @@ const viewMode = document.getElementById('viewMode');
 const viewReference = document.getElementById('viewReference');
 const summary = document.getElementById('summary');
 const workerPanel = document.getElementById('workerPanel');
+const hoursPanel = document.getElementById('hoursPanel');
 const toggleWorkers = document.getElementById('toggleWorkers');
 const dateInput = document.getElementById('datum');
 
@@ -48,6 +49,39 @@ function setDefaultReferenceByMode() {
   }
 }
 
+function isWeekday(dateObj) {
+  const day = dateObj.getDay();
+  return day >= 1 && day <= 5;
+}
+
+function countWeekdaysInMonth(year, month) {
+  let count = 0;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  for (let d = 1; d <= daysInMonth; d += 1) {
+    if (isWeekday(new Date(year, month - 1, d))) count += 1;
+  }
+  return count;
+}
+
+function countWeekdaysInYear(year) {
+  let count = 0;
+  for (let m = 1; m <= 12; m += 1) {
+    count += countWeekdaysInMonth(year, m);
+  }
+  return count;
+}
+
+function getSollHoursForPeriod(mode, ref, weeklySoll) {
+  const dailySoll = weeklySoll / 5;
+  if (!ref) return 0;
+  if (mode === 'woche') return weeklySoll;
+  if (mode === 'jahr') return countWeekdaysInYear(Number(ref)) * dailySoll;
+
+  const [year, month] = ref.split('-').map(Number);
+  if (!year || !month) return 0;
+  return countWeekdaysInMonth(year, month) * dailySoll;
+}
+
 setDefaultReferenceByMode();
 dateInput.max = getTodayIsoDate();
 
@@ -71,6 +105,13 @@ function calculateHours(entry) {
   const end = new Date(`1970-01-01T${entry.endzeit}:00`);
   const minutes = (end - start) / 60000 - (entry.pause_minuten || 0);
   return Math.max(0, minutes / 60);
+}
+
+function calculateAbwesenheitHours(entry, dailySoll) {
+  if (!(entry.status === 'krank' || entry.status === 'urlaub')) return 0;
+  const datum = new Date(`${entry.datum}T00:00:00`);
+  if (!isWeekday(datum)) return 0;
+  return dailySoll;
 }
 
 function renderWorkerOptions(workers) {
@@ -103,6 +144,8 @@ window.editWorker = (worker) => {
   document.getElementById('position').value = worker.position || '';
   document.getElementById('sollStunden').value = worker.soll_stunden;
   workerPanel.hidden = false;
+  hoursPanel.hidden = true;
+  toggleWorkers.textContent = '↩️ Zur Zeiterfassung';
 };
 
 window.removeWorker = async (id) => {
@@ -140,27 +183,17 @@ document.getElementById('workerReset').addEventListener('click', () => {
 });
 
 toggleWorkers.addEventListener('click', () => {
-  workerPanel.hidden = !workerPanel.hidden;
+  const nowOpen = workerPanel.hidden;
+  workerPanel.hidden = !nowOpen;
+  hoursPanel.hidden = nowOpen;
+  toggleWorkers.textContent = nowOpen ? '↩️ Zur Zeiterfassung' : '⚙️ Mitarbeiter';
 });
 
 function getReferenceParams() {
-  const mode = viewMode.value;
-  const ref = viewReference.value;
-  return { mode, ref };
+  return { mode: viewMode.value, ref: viewReference.value };
 }
 
-function getWeekCountForPeriod(mode, ref) {
-  if (!ref) return 0;
-  if (mode === 'woche') return 1;
-  if (mode === 'jahr') return 52;
-
-  const [year, month] = ref.split('-').map(Number);
-  if (!year || !month) return 0;
-  const daysInMonth = new Date(year, month, 0).getDate();
-  return Math.max(1, daysInMonth / 7);
-}
-
-function renderSummary(entries, totalHours) {
+function renderSummary(entries, istHours, abwesenheitHours, kontoHours) {
   const statusCount = entries.reduce((acc, e) => {
     acc[e.status] = (acc[e.status] || 0) + 1;
     return acc;
@@ -168,7 +201,9 @@ function renderSummary(entries, totalHours) {
 
   summary.innerHTML = `
     <span class="badge">Einträge: ${entries.length}</span>
-    <span class="badge">Arbeitsstunden: ${totalHours.toFixed(2)} h</span>
+    <span class="badge">Ist-Arbeitszeit: ${istHours.toFixed(2)} h</span>
+    <span class="badge">Abwesenheit angerechnet: ${abwesenheitHours.toFixed(2)} h</span>
+    <span class="badge">Zeitkonto wirksam: ${kontoHours.toFixed(2)} h</span>
     <span class="badge">Anwesend: ${statusCount.anwesend || 0}</span>
     <span class="badge">Krank: ${statusCount.krank || 0}</span>
     <span class="badge">Urlaub: ${statusCount.urlaub || 0}</span>
@@ -176,26 +211,34 @@ function renderSummary(entries, totalHours) {
   `;
 }
 
-function renderSumRow(entries, totalHours, mode, ref) {
+function renderSumRow(entries, istHours, mode, ref) {
   const selectedWorker = filterWorker.value;
   if (!selectedWorker) return '';
 
   const worker = workerMap.get(selectedWorker);
   if (!worker) return '';
 
-  const weekCount = getWeekCountForPeriod(mode, ref);
-  const soll = Number(worker.soll_stunden) * weekCount;
-  const diff = totalHours - soll;
+  const weeklySoll = Number(worker.soll_stunden);
+  const dailySoll = weeklySoll / 5;
+  const abwesenheitHours = entries.reduce((sum, e) => sum + calculateAbwesenheitHours(e, dailySoll), 0);
+  const kontoHours = istHours + abwesenheitHours;
+  const sollHours = getSollHoursForPeriod(mode, ref, weeklySoll);
+  const diff = kontoHours - sollHours;
   const rowClass = diff >= 0 ? 'sum-row sum-positive' : 'sum-row sum-negative';
 
-  return `
-    <tr class="${rowClass}">
-      <td colspan="6">Summe (${worker.vorname} ${worker.nachname})</td>
-      <td>${totalHours.toFixed(2)} h</td>
-      <td>Soll: ${soll.toFixed(2)} h | ${diff >= 0 ? 'Überstunden' : 'Minusstunden'}: ${diff.toFixed(2)} h</td>
-      <td>-</td>
-    </tr>
-  `;
+  return {
+    rowHtml: `
+      <tr class="${rowClass}">
+        <td colspan="5">Summe (${worker.vorname} ${worker.nachname})</td>
+        <td>Ist: ${istHours.toFixed(2)} h</td>
+        <td>Konto: ${kontoHours.toFixed(2)} h</td>
+        <td>Soll: ${sollHours.toFixed(2)} h | ${diff >= 0 ? 'Plus' : 'Minus'}: ${diff.toFixed(2)} h</td>
+        <td>Abwesenheit angerechnet: ${abwesenheitHours.toFixed(2)} h</td>
+      </tr>
+    `,
+    abwesenheitHours,
+    kontoHours,
+  };
 }
 
 async function loadEntries() {
@@ -207,8 +250,7 @@ async function loadEntries() {
   if (ref) params.set('referenz', ref);
 
   const entries = await api(`/api/entries?${params.toString()}`);
-  const total = entries.reduce((sum, e) => sum + calculateHours(e), 0);
-  renderSummary(entries, total);
+  const istHours = entries.reduce((sum, e) => sum + calculateHours(e), 0);
 
   const bodyRows = entries.map((entry) => {
     const hours = calculateHours(entry);
@@ -230,7 +272,14 @@ async function loadEntries() {
     `;
   }).join('');
 
-  entryTable.innerHTML = `${bodyRows}${renderSumRow(entries, total, mode, ref)}`;
+  const sumData = renderSumRow(entries, istHours, mode, ref);
+  if (sumData) {
+    entryTable.innerHTML = `${bodyRows}${sumData.rowHtml}`;
+    renderSummary(entries, istHours, sumData.abwesenheitHours, sumData.kontoHours);
+  } else {
+    entryTable.innerHTML = bodyRows;
+    renderSummary(entries, istHours, 0, istHours);
+  }
 }
 
 window.editEntry = (entry) => {

@@ -1,30 +1,42 @@
 :root {
-  --bg: #f3f6fb;
+  --bg: #f2f7f5;
   --card: #ffffff;
-  --accent: #2062e0;
-  --accent-dark: #1b4fb4;
+  --accent: #2f6f64;
+  --accent-dark: #24584f;
   --text: #1f2937;
-  --muted: #6b7280;
-  --border: #d1d5db;
+  --muted: #5f6b73;
+  --border: #d5dedb;
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
   font-family: "Segoe UI", Arial, sans-serif;
-  background: linear-gradient(180deg, #eef4ff, var(--bg));
+  background: linear-gradient(180deg, #eef4f2, var(--bg));
   color: var(--text);
 }
 .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
 .header-row { margin-bottom: 20px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
-h1 { margin: 0; }
+h1 { margin: 0; color: #1d4f45; }
 header p { color: var(--muted); margin-top: 6px; }
 .gear-btn { white-space: nowrap; }
 .panel {
   background: var(--card);
   border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(31, 41, 55, 0.08);
+  box-shadow: 0 8px 20px rgba(31, 41, 55, 0.08);
   padding: 20px;
   margin-bottom: 20px;
+  border: 1px solid #e8efec;
+}
+.info-box {
+  margin: 0 0 14px;
+  background: #eef7f4;
+  border: 1px solid #d3e8e1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #2c4e47;
+  display: grid;
+  gap: 2px;
+  font-size: 0.9rem;
 }
 .form-grid {
   display: grid;
@@ -69,9 +81,9 @@ button.secondary:hover { background: #d1d5db; }
   margin-bottom: 12px;
 }
 .badge {
-  background: #eaf1ff;
-  border: 1px solid #d4e2ff;
-  color: #1b4fb4;
+  background: #ebf5f1;
+  border: 1px solid #d4e9e1;
+  color: #24584f;
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 0.85rem;
@@ -88,16 +100,16 @@ th { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-s
 .small-actions button { padding: 6px 10px; font-size: 0.8rem; }
 .status-pill { border-radius: 999px; padding: 4px 10px; font-size: 0.8rem; font-weight: 600; text-transform: capitalize; }
 .status-anwesend { background: #dcfce7; color: #166534; }
-.status-krank { background: #fee2e2; color: #991b1b; }
+.status-krank { background: #ffedd5; color: #9a3412; }
 .status-urlaub { background: #fef3c7; color: #92400e; }
 .status-frei { background: #e0e7ff; color: #3730a3; }
 .sum-row td {
-  background: #edf5ff;
+  background: #edf7f3;
   font-weight: 700;
-  border-top: 2px solid #93c5fd;
+  border-top: 2px solid #93c5b6;
 }
 .sum-positive td { color: #065f46; }
-.sum-negative td { color: #991b1b; background: #fee2e2; border-top-color: #fca5a5; }
+.sum-negative td { color: #9a3412; background: #ffedd5; border-top-color: #fdba74; }
 @media (max-width: 768px) {
   .container { padding: 12px; }
   .panel { padding: 14px; }

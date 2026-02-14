@@ -35,8 +35,14 @@
       </table>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="hoursPanel">
       <h2>Arbeitszeiten</h2>
+      <p class="info-box">
+        <strong>Kurzfassung zur Berechnung:</strong>
+        <span>Sollstunden = vertragliche Zielzeit. Ist-Arbeitsstunden = tatsächliche Anwesenheit.</span>
+        <span>Urlaub/Krank zählen <strong>nicht</strong> als Ist-Arbeitszeit, werden aber als angerechnete Abwesenheit auf das Zeitkonto gewertet (Soll erfüllt).</span>
+      </p>
+
       <form id="entryForm" class="form-grid">
         <input type="hidden" id="entryId">
         <label>Mitarbeiter<select id="entryWorker" required></select></label>
@@ -75,7 +81,7 @@
 
       <table>
         <thead>
-          <tr><th>Datum</th><th>Mitarbeiter</th><th>Status</th><th>Start</th><th>Ende</th><th>Pause</th><th>Stunden</th><th>Notiz</th><th>Aktionen</th></tr>
+          <tr><th>Datum</th><th>Mitarbeiter</th><th>Status</th><th>Start</th><th>Ende</th><th>Pause</th><th>Ist</th><th>Notiz</th><th>Aktionen</th></tr>
         </thead>
         <tbody id="entryTable"></tbody>
       </table>
