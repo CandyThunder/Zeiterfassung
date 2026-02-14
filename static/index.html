@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zeiterfassung</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Zeiterfassung</h1>
+      <p>Mitarbeiter und Arbeitszeiten verwalten</p>
+    </header>
+
+    <section class="panel">
+      <h2>Mitarbeiter</h2>
+      <form id="workerForm" class="form-grid">
+        <input type="hidden" id="workerId">
+        <label>Vorname<input id="vorname" required></label>
+        <label>Nachname<input id="nachname" required></label>
+        <label>Position<input id="position"></label>
+        <div class="actions">
+          <button type="submit">Speichern</button>
+          <button type="button" id="workerReset" class="secondary">Zurücksetzen</button>
+        </div>
+      </form>
+      <table>
+        <thead><tr><th>Name</th><th>Position</th><th>Aktionen</th></tr></thead>
+        <tbody id="workerTable"></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>Arbeitszeiten</h2>
+      <form id="entryForm" class="form-grid">
+        <input type="hidden" id="entryId">
+        <label>Mitarbeiter<select id="entryWorker" required></select></label>
+        <label>Datum<input type="date" id="datum" required></label>
+        <label>Status
+          <select id="status" required>
+            <option value="anwesend">Anwesend</option>
+            <option value="krank">Krank</option>
+            <option value="urlaub">Urlaub</option>
+            <option value="frei">Frei</option>
+          </select>
+        </label>
+        <label>Start<input type="time" id="startzeit"></label>
+        <label>Ende<input type="time" id="endzeit"></label>
+        <label>Pause (Min)<input type="number" id="pause" min="0" value="0"></label>
+        <label class="full">Notiz<textarea id="notiz" rows="2"></textarea></label>
+        <div class="actions full">
+          <button type="submit">Speichern</button>
+          <button type="button" id="entryReset" class="secondary">Zurücksetzen</button>
+        </div>
+      </form>
+
+      <div class="filter-row">
+        <label>Filter Mitarbeiter<select id="filterWorker"></select></label>
+        <label>Ansicht
+          <select id="viewMode">
+            <option value="woche">Kalenderwoche</option>
+            <option value="monat" selected>Monat</option>
+            <option value="jahr">Jahr</option>
+          </select>
+        </label>
+        <label>Zeitraum<input id="viewReference" type="month"></label>
+      </div>
+
+      <div id="summary" class="summary"></div>
+
+      <table>
+        <thead>
+          <tr><th>Datum</th><th>Mitarbeiter</th><th>Status</th><th>Start</th><th>Ende</th><th>Pause</th><th>Stunden</th><th>Notiz</th><th>Aktionen</th></tr>
+        </thead>
+        <tbody id="entryTable"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
