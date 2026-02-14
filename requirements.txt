@@ -1,0 +1,3 @@
+# Für den App-Betrieb sind keine zusätzlichen Python-Pakete nötig (nur Standardbibliothek).
+# Optional für EXE-Build auf Windows:
+# pyinstaller==6.10.0

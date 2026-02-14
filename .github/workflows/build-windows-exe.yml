@@ -1,0 +1,40 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "work" ]
+  pull_request:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip && python -m pip install "pyinstaller>=6.15,<7"
+
+      - name: Build EXE
+        run: python -m PyInstaller --noconfirm --onefile --name Zeiterfassung --add-data "static;static" run_server.py
+
+      - name: Verify artifact
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/Zeiterfassung.exe")) {
+            Write-Error "dist/Zeiterfassung.exe wurde nicht erzeugt"
+            exit 1
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zeiterfassung-windows-exe
+          path: dist/Zeiterfassung.exe
