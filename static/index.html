@@ -13,7 +13,15 @@
         <h1>Zeiterfassung</h1>
         <p>Arbeitszeiten erfassen und auswerten</p>
       </div>
-      <button type="button" id="toggleWorkers" class="secondary gear-btn" title="Mitarbeiter verwalten">⚙️ Mitarbeiter</button>
+      <div class="gear-wrap">
+        <button type="button" id="toggleMenu" class="secondary gear-btn" title="Menü">⚙️</button>
+        <div id="gearMenu" class="gear-menu" hidden>
+          <button type="button" id="openWorkerConfig">Mitarbeiter verwalten</button>
+          <button type="button" id="backToHours" hidden>Zur Zeiterfassung zurück</button>
+          <button type="button" id="exportExcel">Monat als Excel (CSV) exportieren</button>
+          <button type="button" id="exportPdf">Monat als PDF exportieren</button>
+        </div>
+      </div>
     </header>
 
     <section class="panel" id="workerPanel" hidden>
@@ -37,11 +45,6 @@
 
     <section class="panel" id="hoursPanel">
       <h2>Arbeitszeiten</h2>
-      <p class="info-box">
-        <strong>Kurzfassung zur Berechnung:</strong>
-        <span>Sollstunden = vertragliche Zielzeit. Ist-Arbeitsstunden = tatsächliche Anwesenheit.</span>
-        <span>Urlaub/Krank zählen <strong>nicht</strong> als Ist-Arbeitszeit, werden aber als angerechnete Abwesenheit auf das Zeitkonto gewertet (Soll erfüllt).</span>
-      </p>
 
       <form id="entryForm" class="form-grid">
         <input type="hidden" id="entryId">

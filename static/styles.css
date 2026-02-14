@@ -18,7 +18,28 @@ body {
 .header-row { margin-bottom: 20px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
 h1 { margin: 0; color: #1d4f45; }
 header p { color: var(--muted); margin-top: 6px; }
-.gear-btn { white-space: nowrap; }
+.gear-wrap { position: relative; }
+.gear-btn { width: 44px; height: 44px; font-size: 1.2rem; padding: 0; border-radius: 10px; }
+.gear-menu {
+  position: absolute;
+  right: 0;
+  top: 52px;
+  z-index: 5;
+  min-width: 260px;
+  border: 1px solid #d5dedb;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(31, 41, 55, 0.12);
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+}
+.gear-menu button {
+  text-align: left;
+  background: #f5f8f7;
+  color: #1f2937;
+}
+.gear-menu button:hover { background: #e8efec; }
 .panel {
   background: var(--card);
   border-radius: 14px;
@@ -26,17 +47,6 @@ header p { color: var(--muted); margin-top: 6px; }
   padding: 20px;
   margin-bottom: 20px;
   border: 1px solid #e8efec;
-}
-.info-box {
-  margin: 0 0 14px;
-  background: #eef7f4;
-  border: 1px solid #d3e8e1;
-  border-radius: 10px;
-  padding: 10px 12px;
-  color: #2c4e47;
-  display: grid;
-  gap: 2px;
-  font-size: 0.9rem;
 }
 .form-grid {
   display: grid;

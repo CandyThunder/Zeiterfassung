@@ -9,7 +9,12 @@ const viewReference = document.getElementById('viewReference');
 const summary = document.getElementById('summary');
 const workerPanel = document.getElementById('workerPanel');
 const hoursPanel = document.getElementById('hoursPanel');
-const toggleWorkers = document.getElementById('toggleWorkers');
+const toggleMenu = document.getElementById('toggleMenu');
+const gearMenu = document.getElementById('gearMenu');
+const openWorkerConfig = document.getElementById('openWorkerConfig');
+const backToHours = document.getElementById('backToHours');
+const exportExcel = document.getElementById('exportExcel');
+const exportPdf = document.getElementById('exportPdf');
 const dateInput = document.getElementById('datum');
 
 let workerMap = new Map();
@@ -65,9 +70,7 @@ function countWeekdaysInMonth(year, month) {
 
 function countWeekdaysInYear(year) {
   let count = 0;
-  for (let m = 1; m <= 12; m += 1) {
-    count += countWeekdaysInMonth(year, m);
-  }
+  for (let m = 1; m <= 12; m += 1) count += countWeekdaysInMonth(year, m);
   return count;
 }
 
@@ -80,6 +83,13 @@ function getSollHoursForPeriod(mode, ref, weeklySoll) {
   const [year, month] = ref.split('-').map(Number);
   if (!year || !month) return 0;
   return countWeekdaysInMonth(year, month) * dailySoll;
+}
+
+function showWorkerPanel(show) {
+  workerPanel.hidden = !show;
+  hoursPanel.hidden = show;
+  backToHours.hidden = !show;
+  openWorkerConfig.hidden = show;
 }
 
 setDefaultReferenceByMode();
@@ -143,9 +153,7 @@ window.editWorker = (worker) => {
   document.getElementById('nachname').value = worker.nachname;
   document.getElementById('position').value = worker.position || '';
   document.getElementById('sollStunden').value = worker.soll_stunden;
-  workerPanel.hidden = false;
-  hoursPanel.hidden = true;
-  toggleWorkers.textContent = '↩️ Zur Zeiterfassung';
+  showWorkerPanel(true);
 };
 
 window.removeWorker = async (id) => {
@@ -182,18 +190,11 @@ document.getElementById('workerReset').addEventListener('click', () => {
   document.getElementById('sollStunden').value = '40';
 });
 
-toggleWorkers.addEventListener('click', () => {
-  const nowOpen = workerPanel.hidden;
-  workerPanel.hidden = !nowOpen;
-  hoursPanel.hidden = nowOpen;
-  toggleWorkers.textContent = nowOpen ? '↩️ Zur Zeiterfassung' : '⚙️ Mitarbeiter';
-});
-
 function getReferenceParams() {
   return { mode: viewMode.value, ref: viewReference.value };
 }
 
-function renderSummary(entries, istHours, abwesenheitHours, kontoHours) {
+function renderSummary(entries, istHours, kontoHours) {
   const statusCount = entries.reduce((acc, e) => {
     acc[e.status] = (acc[e.status] || 0) + 1;
     return acc;
@@ -202,8 +203,7 @@ function renderSummary(entries, istHours, abwesenheitHours, kontoHours) {
   summary.innerHTML = `
     <span class="badge">Einträge: ${entries.length}</span>
     <span class="badge">Ist-Arbeitszeit: ${istHours.toFixed(2)} h</span>
-    <span class="badge">Abwesenheit angerechnet: ${abwesenheitHours.toFixed(2)} h</span>
-    <span class="badge">Zeitkonto wirksam: ${kontoHours.toFixed(2)} h</span>
+    <span class="badge">Zeitkonto: ${kontoHours.toFixed(2)} h</span>
     <span class="badge">Anwesend: ${statusCount.anwesend || 0}</span>
     <span class="badge">Krank: ${statusCount.krank || 0}</span>
     <span class="badge">Urlaub: ${statusCount.urlaub || 0}</span>
@@ -223,20 +223,17 @@ function renderSumRow(entries, istHours, mode, ref) {
   const abwesenheitHours = entries.reduce((sum, e) => sum + calculateAbwesenheitHours(e, dailySoll), 0);
   const kontoHours = istHours + abwesenheitHours;
   const sollHours = getSollHoursForPeriod(mode, ref, weeklySoll);
-  const diff = kontoHours - sollHours;
-  const rowClass = diff >= 0 ? 'sum-row sum-positive' : 'sum-row sum-negative';
+  const rowClass = kontoHours - sollHours >= 0 ? 'sum-row sum-positive' : 'sum-row sum-negative';
 
   return {
     rowHtml: `
       <tr class="${rowClass}">
-        <td colspan="5">Summe (${worker.vorname} ${worker.nachname})</td>
+        <td colspan="6">Summe (${worker.vorname} ${worker.nachname})</td>
         <td>Ist: ${istHours.toFixed(2)} h</td>
         <td>Konto: ${kontoHours.toFixed(2)} h</td>
-        <td>Soll: ${sollHours.toFixed(2)} h | ${diff >= 0 ? 'Plus' : 'Minus'}: ${diff.toFixed(2)} h</td>
-        <td>Abwesenheit angerechnet: ${abwesenheitHours.toFixed(2)} h</td>
+        <td>Soll: ${sollHours.toFixed(2)} h</td>
       </tr>
     `,
-    abwesenheitHours,
     kontoHours,
   };
 }
@@ -275,10 +272,10 @@ async function loadEntries() {
   const sumData = renderSumRow(entries, istHours, mode, ref);
   if (sumData) {
     entryTable.innerHTML = `${bodyRows}${sumData.rowHtml}`;
-    renderSummary(entries, istHours, sumData.abwesenheitHours, sumData.kontoHours);
+    renderSummary(entries, istHours, sumData.kontoHours);
   } else {
     entryTable.innerHTML = bodyRows;
-    renderSummary(entries, istHours, 0, istHours);
+    renderSummary(entries, istHours, istHours);
   }
 }
 
@@ -332,6 +329,142 @@ document.getElementById('entryReset').addEventListener('click', () => {
   entryForm.reset();
   document.getElementById('entryId').value = '';
   dateInput.max = getTodayIsoDate();
+});
+
+async function getMonthForExport() {
+  let month = '';
+  if (viewMode.value === 'monat' && viewReference.value) {
+    month = viewReference.value;
+  } else {
+    const now = new Date();
+    month = prompt('Bitte Monat für Export eingeben (YYYY-MM):', `${now.getFullYear()}-${formatTwo(now.getMonth() + 1)}`) || '';
+  }
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    alert('Ungültiges Format. Bitte YYYY-MM verwenden.');
+    return null;
+  }
+  return month;
+}
+
+async function fetchMonthEntries(month) {
+  const params = new URLSearchParams({ zeitraum: 'monat', referenz: month });
+  if (filterWorker.value) params.set('worker_id', filterWorker.value);
+  return api(`/api/entries?${params.toString()}`);
+}
+
+function downloadFile(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportAsCsv(entries, month) {
+  const lines = ['Datum;Mitarbeiter;Status;Start;Ende;Pause(min);Ist(h);Notiz'];
+  for (const e of entries) {
+    const ist = calculateHours(e).toFixed(2).replace('.', ',');
+    const row = [
+      e.datum,
+      `${e.vorname} ${e.nachname}`,
+      e.status,
+      e.startzeit || '',
+      e.endzeit || '',
+      String(e.pause_minuten || 0),
+      ist,
+      (e.notiz || '').replace(/;/g, ',').replace(/\n/g, ' '),
+    ];
+    lines.push(row.join(';'));
+  }
+  downloadFile(`zeiterfassung_${month}.csv`, lines.join('\n'), 'text/csv;charset=utf-8;');
+}
+
+function exportAsPdf(entries, month) {
+  const rows = entries.map((e) => `
+    <tr>
+      <td>${e.datum}</td>
+      <td>${e.vorname} ${e.nachname}</td>
+      <td>${e.status}</td>
+      <td>${e.startzeit || '-'}</td>
+      <td>${e.endzeit || '-'}</td>
+      <td>${e.pause_minuten || 0}</td>
+      <td>${calculateHours(e).toFixed(2)}</td>
+      <td>${e.notiz || '-'}</td>
+    </tr>
+  `).join('');
+
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('Popup wurde blockiert. Bitte Popup-Freigabe aktivieren.');
+    return;
+  }
+
+  win.document.write(`
+    <html lang="de">
+    <head>
+      <title>Zeiterfassung ${month}</title>
+      <style>
+        body { font-family: Arial, sans-serif; color: #1f2937; padding: 24px; }
+        h1 { color: #1d4f45; margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #cfd8d6; padding: 8px; text-align: left; font-size: 12px; }
+        th { background: #eef7f4; }
+      </style>
+    </head>
+    <body>
+      <h1>Zeiterfassung ${month}</h1>
+      <table>
+        <thead>
+          <tr><th>Datum</th><th>Mitarbeiter</th><th>Status</th><th>Start</th><th>Ende</th><th>Pause</th><th>Ist</th><th>Notiz</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </body>
+    </html>
+  `);
+  win.document.close();
+  win.focus();
+  win.print();
+}
+
+toggleMenu.addEventListener('click', () => {
+  gearMenu.hidden = !gearMenu.hidden;
+});
+
+openWorkerConfig.addEventListener('click', () => {
+  showWorkerPanel(true);
+  gearMenu.hidden = true;
+});
+
+backToHours.addEventListener('click', () => {
+  showWorkerPanel(false);
+  gearMenu.hidden = true;
+});
+
+exportExcel.addEventListener('click', async () => {
+  const month = await getMonthForExport();
+  if (!month) return;
+  const entries = await fetchMonthEntries(month);
+  exportAsCsv(entries, month);
+  gearMenu.hidden = true;
+});
+
+exportPdf.addEventListener('click', async () => {
+  const month = await getMonthForExport();
+  if (!month) return;
+  const entries = await fetchMonthEntries(month);
+  exportAsPdf(entries, month);
+  gearMenu.hidden = true;
+});
+
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('.gear-wrap')) {
+    gearMenu.hidden = true;
+  }
 });
 
 filterWorker.addEventListener('change', loadEntries);

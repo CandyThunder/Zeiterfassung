@@ -18,6 +18,7 @@ Moderne Anwendung zur Verwaltung von:
 - **Wöchentliche Ansicht korrigiert** (ISO-Kalenderwoche)
 - **Krank/Urlaub-Logik praxisnah**: nicht als Ist-Zeit, aber als angerechnete Abwesenheit im Zeitkonto
 - **Ruhiges Praxis-Design**: reduzierte, freundliche Farbgebung ohne Bilder
+- **Export pro Monat**: Excel-kompatible CSV und druckbares PDF über das Zahnrad-Menü
 
 ## Muss Python installiert sein?
 
