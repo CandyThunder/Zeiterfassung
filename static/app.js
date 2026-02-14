@@ -15,17 +15,24 @@ const openWorkerConfig = document.getElementById('openWorkerConfig');
 const backToHours = document.getElementById('backToHours');
 const exportExcel = document.getElementById('exportExcel');
 const exportPdf = document.getElementById('exportPdf');
+const exportModal = document.getElementById('exportModal');
+const exportMonth = document.getElementById('exportMonth');
+const exportWorker = document.getElementById('exportWorker');
+const confirmExportExcel = document.getElementById('confirmExportExcel');
+const confirmExportPdf = document.getElementById('confirmExportPdf');
+const closeExportModal = document.getElementById('closeExportModal');
 const dateInput = document.getElementById('datum');
 
 let workerMap = new Map();
 
-function formatTwo(num) {
-  return String(num).padStart(2, '0');
-}
-
+function formatTwo(num) { return String(num).padStart(2, '0'); }
 function getTodayIsoDate() {
   const now = new Date();
   return `${now.getFullYear()}-${formatTwo(now.getMonth() + 1)}-${formatTwo(now.getDate())}`;
+}
+function nowMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${formatTwo(now.getMonth() + 1)}`;
 }
 
 function getIsoWeekString(date) {
@@ -50,7 +57,7 @@ function setDefaultReferenceByMode() {
     viewReference.value = String(now.getFullYear());
   } else {
     viewReference.type = 'month';
-    viewReference.value = `${now.getFullYear()}-${formatTwo(now.getMonth() + 1)}`;
+    viewReference.value = nowMonth();
   }
 }
 
@@ -79,7 +86,6 @@ function getSollHoursForPeriod(mode, ref, weeklySoll) {
   if (!ref) return 0;
   if (mode === 'woche') return weeklySoll;
   if (mode === 'jahr') return countWeekdaysInYear(Number(ref)) * dailySoll;
-
   const [year, month] = ref.split('-').map(Number);
   if (!year || !month) return 0;
   return countWeekdaysInMonth(year, month) * dailySoll;
@@ -96,10 +102,7 @@ setDefaultReferenceByMode();
 dateInput.max = getTodayIsoDate();
 
 async function api(url, options = {}) {
-  const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const response = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unbekannter Fehler' }));
     alert(error.error || 'Fehler bei der Anfrage');
@@ -120,8 +123,7 @@ function calculateHours(entry) {
 function calculateAbwesenheitHours(entry, dailySoll) {
   if (!(entry.status === 'krank' || entry.status === 'urlaub')) return 0;
   const datum = new Date(`${entry.datum}T00:00:00`);
-  if (!isWeekday(datum)) return 0;
-  return dailySoll;
+  return isWeekday(datum) ? dailySoll : 0;
 }
 
 function renderWorkerOptions(workers) {
@@ -129,6 +131,7 @@ function renderWorkerOptions(workers) {
   const options = workers.map((w) => `<option value="${w.id}">${w.vorname} ${w.nachname}</option>`).join('');
   entryWorker.innerHTML = options;
   filterWorker.innerHTML = `<option value="">Alle Mitarbeiter</option>${options}`;
+  exportWorker.innerHTML = `<option value="">Alle Mitarbeiter</option>${options}`;
 }
 
 async function loadWorkers() {
@@ -172,11 +175,9 @@ workerForm.addEventListener('submit', async (event) => {
     position: document.getElementById('position').value,
     soll_stunden: Number(document.getElementById('sollStunden').value),
   };
-  if (id) {
-    await api(`/api/workers/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-  } else {
-    await api('/api/workers', { method: 'POST', body: JSON.stringify(payload) });
-  }
+  if (id) await api(`/api/workers/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+  else await api('/api/workers', { method: 'POST', body: JSON.stringify(payload) });
+
   workerForm.reset();
   document.getElementById('workerId').value = '';
   document.getElementById('sollStunden').value = '40';
@@ -190,16 +191,13 @@ document.getElementById('workerReset').addEventListener('click', () => {
   document.getElementById('sollStunden').value = '40';
 });
 
-function getReferenceParams() {
-  return { mode: viewMode.value, ref: viewReference.value };
-}
+function getReferenceParams() { return { mode: viewMode.value, ref: viewReference.value }; }
 
 function renderSummary(entries, istHours, kontoHours) {
   const statusCount = entries.reduce((acc, e) => {
     acc[e.status] = (acc[e.status] || 0) + 1;
     return acc;
   }, {});
-
   summary.innerHTML = `
     <span class="badge">Einträge: ${entries.length}</span>
     <span class="badge">Ist-Arbeitszeit: ${istHours.toFixed(2)} h</span>
@@ -211,31 +209,47 @@ function renderSummary(entries, istHours, kontoHours) {
   `;
 }
 
-function renderSumRow(entries, istHours, mode, ref) {
-  const selectedWorker = filterWorker.value;
-  if (!selectedWorker) return '';
-
-  const worker = workerMap.get(selectedWorker);
-  if (!worker) return '';
+function buildTotals(entries, mode, ref, workerId) {
+  const istHours = entries.reduce((sum, e) => sum + calculateHours(e), 0);
+  if (!workerId) return { istHours, kontoHours: istHours, sollHours: null };
+  const worker = workerMap.get(String(workerId));
+  if (!worker) return { istHours, kontoHours: istHours, sollHours: null };
 
   const weeklySoll = Number(worker.soll_stunden);
   const dailySoll = weeklySoll / 5;
   const abwesenheitHours = entries.reduce((sum, e) => sum + calculateAbwesenheitHours(e, dailySoll), 0);
-  const kontoHours = istHours + abwesenheitHours;
-  const sollHours = getSollHoursForPeriod(mode, ref, weeklySoll);
-  const rowClass = kontoHours - sollHours >= 0 ? 'sum-row sum-positive' : 'sum-row sum-negative';
-
   return {
-    rowHtml: `
-      <tr class="${rowClass}">
-        <td colspan="6">Summe (${worker.vorname} ${worker.nachname})</td>
-        <td>Ist: ${istHours.toFixed(2)} h</td>
-        <td>Konto: ${kontoHours.toFixed(2)} h</td>
-        <td>Soll: ${sollHours.toFixed(2)} h</td>
-      </tr>
-    `,
-    kontoHours,
+    istHours,
+    kontoHours: istHours + abwesenheitHours,
+    sollHours: getSollHoursForPeriod(mode, ref, weeklySoll),
   };
+}
+
+function renderSumRow(entries, mode, ref) {
+  if (entries.length === 0) return '';
+  const selectedWorker = filterWorker.value;
+  const totals = buildTotals(entries, mode, ref, selectedWorker || null);
+
+  if (!selectedWorker) {
+    return `
+      <tr class="sum-row">
+        <td colspan="6">Summe (alle Mitarbeiter)</td>
+        <td>Ist: ${totals.istHours.toFixed(2)} h</td>
+        <td>Konto: -</td>
+        <td>Soll: Mitarbeiterfilter wählen</td>
+      </tr>
+    `;
+  }
+
+  const rowClass = totals.kontoHours - totals.sollHours >= 0 ? 'sum-row sum-positive' : 'sum-row sum-negative';
+  return `
+    <tr class="${rowClass}">
+      <td colspan="6">Summe</td>
+      <td>Ist: ${totals.istHours.toFixed(2)} h</td>
+      <td>Konto: ${totals.kontoHours.toFixed(2)} h</td>
+      <td>Soll: ${totals.sollHours.toFixed(2)} h</td>
+    </tr>
+  `;
 }
 
 async function loadEntries() {
@@ -247,36 +261,27 @@ async function loadEntries() {
   if (ref) params.set('referenz', ref);
 
   const entries = await api(`/api/entries?${params.toString()}`);
-  const istHours = entries.reduce((sum, e) => sum + calculateHours(e), 0);
+  const totals = buildTotals(entries, mode, ref, workerId || null);
 
-  const bodyRows = entries.map((entry) => {
-    const hours = calculateHours(entry);
-    return `
-      <tr>
-        <td>${entry.datum}</td>
-        <td>${entry.vorname} ${entry.nachname}</td>
-        <td><span class="status-pill status-${entry.status}">${entry.status}</span></td>
-        <td>${entry.startzeit || '-'}</td>
-        <td>${entry.endzeit || '-'}</td>
-        <td>${entry.pause_minuten || 0} min</td>
-        <td>${hours.toFixed(2)} h</td>
-        <td>${entry.notiz || '-'}</td>
-        <td class="small-actions">
-          <button onclick='editEntry(${JSON.stringify(entry)})'>Bearbeiten</button>
-          <button class='secondary' onclick='removeEntry(${entry.id})'>Löschen</button>
-        </td>
-      </tr>
-    `;
-  }).join('');
+  const bodyRows = entries.map((entry) => `
+    <tr>
+      <td>${entry.datum}</td>
+      <td>${entry.vorname} ${entry.nachname}</td>
+      <td><span class="status-pill status-${entry.status}">${entry.status}</span></td>
+      <td>${entry.startzeit || '-'}</td>
+      <td>${entry.endzeit || '-'}</td>
+      <td>${entry.pause_minuten || 0} min</td>
+      <td>${calculateHours(entry).toFixed(2)} h</td>
+      <td>${entry.notiz || '-'}</td>
+      <td class="small-actions">
+        <button onclick='editEntry(${JSON.stringify(entry)})'>Bearbeiten</button>
+        <button class='secondary' onclick='removeEntry(${entry.id})'>Löschen</button>
+      </td>
+    </tr>
+  `).join('');
 
-  const sumData = renderSumRow(entries, istHours, mode, ref);
-  if (sumData) {
-    entryTable.innerHTML = `${bodyRows}${sumData.rowHtml}`;
-    renderSummary(entries, istHours, sumData.kontoHours);
-  } else {
-    entryTable.innerHTML = bodyRows;
-    renderSummary(entries, istHours, istHours);
-  }
+  entryTable.innerHTML = `${bodyRows}${renderSumRow(entries, mode, ref)}`;
+  renderSummary(entries, totals.istHours, totals.kontoHours);
 }
 
 window.editEntry = (entry) => {
@@ -314,11 +319,9 @@ entryForm.addEventListener('submit', async (event) => {
     pause_minuten: Number(document.getElementById('pause').value || 0),
     notiz: document.getElementById('notiz').value,
   };
-  if (id) {
-    await api(`/api/entries/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-  } else {
-    await api('/api/entries', { method: 'POST', body: JSON.stringify(payload) });
-  }
+  if (id) await api(`/api/entries/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+  else await api('/api/entries', { method: 'POST', body: JSON.stringify(payload) });
+
   entryForm.reset();
   document.getElementById('entryId').value = '';
   dateInput.max = getTodayIsoDate();
@@ -330,27 +333,6 @@ document.getElementById('entryReset').addEventListener('click', () => {
   document.getElementById('entryId').value = '';
   dateInput.max = getTodayIsoDate();
 });
-
-async function getMonthForExport() {
-  let month = '';
-  if (viewMode.value === 'monat' && viewReference.value) {
-    month = viewReference.value;
-  } else {
-    const now = new Date();
-    month = prompt('Bitte Monat für Export eingeben (YYYY-MM):', `${now.getFullYear()}-${formatTwo(now.getMonth() + 1)}`) || '';
-  }
-  if (!/^\d{4}-\d{2}$/.test(month)) {
-    alert('Ungültiges Format. Bitte YYYY-MM verwenden.');
-    return null;
-  }
-  return month;
-}
-
-async function fetchMonthEntries(month) {
-  const params = new URLSearchParams({ zeitraum: 'monat', referenz: month });
-  if (filterWorker.value) params.set('worker_id', filterWorker.value);
-  return api(`/api/entries?${params.toString()}`);
-}
 
 function downloadFile(filename, content, type) {
   const blob = new Blob([content], { type });
@@ -364,114 +346,103 @@ function downloadFile(filename, content, type) {
   URL.revokeObjectURL(url);
 }
 
-function exportAsCsv(entries, month) {
+async function fetchExportEntries(month, workerId) {
+  const params = new URLSearchParams({ zeitraum: 'monat', referenz: month });
+  if (workerId) params.set('worker_id', workerId);
+  return api(`/api/entries?${params.toString()}`);
+}
+
+function exportAsCsv(entries, month, workerId) {
+  const totals = buildTotals(entries, 'monat', month, workerId || null);
   const lines = ['Datum;Mitarbeiter;Status;Start;Ende;Pause(min);Ist(h);Notiz'];
   for (const e of entries) {
-    const ist = calculateHours(e).toFixed(2).replace('.', ',');
-    const row = [
+    lines.push([
       e.datum,
       `${e.vorname} ${e.nachname}`,
       e.status,
       e.startzeit || '',
       e.endzeit || '',
       String(e.pause_minuten || 0),
-      ist,
+      calculateHours(e).toFixed(2).replace('.', ','),
       (e.notiz || '').replace(/;/g, ',').replace(/\n/g, ' '),
-    ];
-    lines.push(row.join(';'));
+    ].join(';'));
   }
+  lines.push('');
+  lines.push(`Summe;;;;;;Ist: ${totals.istHours.toFixed(2).replace('.', ',')};Konto: ${totals.kontoHours.toFixed(2).replace('.', ',')};Soll: ${totals.sollHours === null ? '-' : totals.sollHours.toFixed(2).replace('.', ',')}`);
   downloadFile(`zeiterfassung_${month}.csv`, lines.join('\n'), 'text/csv;charset=utf-8;');
 }
 
-function exportAsPdf(entries, month) {
+function exportAsPdf(entries, month, workerId) {
+  const totals = buildTotals(entries, 'monat', month, workerId || null);
   const rows = entries.map((e) => `
     <tr>
-      <td>${e.datum}</td>
-      <td>${e.vorname} ${e.nachname}</td>
-      <td>${e.status}</td>
-      <td>${e.startzeit || '-'}</td>
-      <td>${e.endzeit || '-'}</td>
-      <td>${e.pause_minuten || 0}</td>
-      <td>${calculateHours(e).toFixed(2)}</td>
-      <td>${e.notiz || '-'}</td>
+      <td>${e.datum}</td><td>${e.vorname} ${e.nachname}</td><td>${e.status}</td>
+      <td>${e.startzeit || '-'}</td><td>${e.endzeit || '-'}</td><td>${e.pause_minuten || 0}</td>
+      <td>${calculateHours(e).toFixed(2)}</td><td>${e.notiz || '-'}</td>
     </tr>
   `).join('');
 
   const win = window.open('', '_blank');
-  if (!win) {
-    alert('Popup wurde blockiert. Bitte Popup-Freigabe aktivieren.');
-    return;
-  }
+  if (!win) return alert('Popup wurde blockiert. Bitte Popup-Freigabe aktivieren.');
 
   win.document.write(`
-    <html lang="de">
-    <head>
-      <title>Zeiterfassung ${month}</title>
+    <html lang="de"><head><title>Zeiterfassung ${month}</title>
       <style>
-        body { font-family: Arial, sans-serif; color: #1f2937; padding: 24px; }
-        h1 { color: #1d4f45; margin-top: 0; }
+        @page { size: A4 landscape; margin: 10mm; }
+        body { font-family: Arial, sans-serif; color: #1f2937; font-size: 11px; }
+        h1 { color: #1d4f45; margin: 0 0 10px; font-size: 20px; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #cfd8d6; padding: 8px; text-align: left; font-size: 12px; }
+        th, td { border: 1px solid #cfd8d6; padding: 4px 6px; text-align: left; font-size: 10px; }
         th { background: #eef7f4; }
+        .sum { margin-top: 10px; font-weight: 700; }
       </style>
-    </head>
-    <body>
+    </head><body>
       <h1>Zeiterfassung ${month}</h1>
       <table>
-        <thead>
-          <tr><th>Datum</th><th>Mitarbeiter</th><th>Status</th><th>Start</th><th>Ende</th><th>Pause</th><th>Ist</th><th>Notiz</th></tr>
-        </thead>
+        <thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Status</th><th>Start</th><th>Ende</th><th>Pause</th><th>Ist</th><th>Notiz</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-    </body>
-    </html>
+      <div class="sum">Summe – Ist: ${totals.istHours.toFixed(2)} h | Konto: ${totals.kontoHours.toFixed(2)} h | Soll: ${totals.sollHours === null ? '-' : totals.sollHours.toFixed(2)} h</div>
+    </body></html>
   `);
   win.document.close();
   win.focus();
   win.print();
 }
 
-toggleMenu.addEventListener('click', () => {
-  gearMenu.hidden = !gearMenu.hidden;
+function openExportModal() {
+  exportMonth.value = viewMode.value === 'monat' && viewReference.value ? viewReference.value : nowMonth();
+  exportWorker.value = filterWorker.value || '';
+  exportModal.hidden = false;
+}
+
+toggleMenu.addEventListener('click', () => { gearMenu.hidden = !gearMenu.hidden; });
+openWorkerConfig.addEventListener('click', () => { showWorkerPanel(true); gearMenu.hidden = true; });
+backToHours.addEventListener('click', () => { showWorkerPanel(false); gearMenu.hidden = true; });
+exportExcel.addEventListener('click', () => { openExportModal(); gearMenu.hidden = true; });
+exportPdf.addEventListener('click', () => { openExportModal(); gearMenu.hidden = true; });
+closeExportModal.addEventListener('click', () => { exportModal.hidden = true; });
+
+confirmExportExcel.addEventListener('click', async () => {
+  if (!exportMonth.value) return alert('Bitte Monat auswählen.');
+  const entries = await fetchExportEntries(exportMonth.value, exportWorker.value);
+  exportAsCsv(entries, exportMonth.value, exportWorker.value);
+  exportModal.hidden = true;
 });
 
-openWorkerConfig.addEventListener('click', () => {
-  showWorkerPanel(true);
-  gearMenu.hidden = true;
-});
-
-backToHours.addEventListener('click', () => {
-  showWorkerPanel(false);
-  gearMenu.hidden = true;
-});
-
-exportExcel.addEventListener('click', async () => {
-  const month = await getMonthForExport();
-  if (!month) return;
-  const entries = await fetchMonthEntries(month);
-  exportAsCsv(entries, month);
-  gearMenu.hidden = true;
-});
-
-exportPdf.addEventListener('click', async () => {
-  const month = await getMonthForExport();
-  if (!month) return;
-  const entries = await fetchMonthEntries(month);
-  exportAsPdf(entries, month);
-  gearMenu.hidden = true;
+confirmExportPdf.addEventListener('click', async () => {
+  if (!exportMonth.value) return alert('Bitte Monat auswählen.');
+  const entries = await fetchExportEntries(exportMonth.value, exportWorker.value);
+  exportAsPdf(entries, exportMonth.value, exportWorker.value);
+  exportModal.hidden = true;
 });
 
 document.addEventListener('click', (event) => {
-  if (!event.target.closest('.gear-wrap')) {
-    gearMenu.hidden = true;
-  }
+  if (!event.target.closest('.gear-wrap')) gearMenu.hidden = true;
 });
 
 filterWorker.addEventListener('change', loadEntries);
-viewMode.addEventListener('change', () => {
-  setDefaultReferenceByMode();
-  loadEntries();
-});
+viewMode.addEventListener('change', () => { setDefaultReferenceByMode(); loadEntries(); });
 viewReference.addEventListener('change', loadEntries);
 
 async function init() {

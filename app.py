@@ -4,6 +4,7 @@ import json
 import sqlite3
 import sys
 from datetime import date, datetime
+from time import sleep
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -19,10 +20,27 @@ VALID_STATUS = {"anwesend", "krank", "urlaub", "frei"}
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 10000")
     return conn
+
+
+def run_write_with_retry(action, retries: int = 3):
+    last_error = None
+    for attempt in range(retries):
+        try:
+            return action()
+        except sqlite3.OperationalError as exc:
+            if "locked" in str(exc).lower() and attempt < retries - 1:
+                sleep(0.2 * (attempt + 1))
+                last_error = exc
+                continue
+            raise
+    if last_error:
+        raise last_error
 
 
 def add_column_if_missing(conn: sqlite3.Connection, table_name: str, column_sql: str, column_name: str) -> None:

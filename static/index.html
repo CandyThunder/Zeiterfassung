@@ -91,6 +91,25 @@
     </section>
   </div>
 
+  <div id="exportModal" class="modal" hidden>
+    <div class="modal-card">
+      <h3>Export</h3>
+      <label>Monat
+        <input type="month" id="exportMonth">
+      </label>
+      <label>Mitarbeiter
+        <select id="exportWorker">
+          <option value="">Alle Mitarbeiter</option>
+        </select>
+      </label>
+      <div class="modal-actions">
+        <button type="button" id="confirmExportExcel">Excel (CSV) exportieren</button>
+        <button type="button" id="confirmExportPdf">PDF exportieren</button>
+        <button type="button" id="closeExportModal" class="secondary">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
