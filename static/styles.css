@@ -40,6 +40,9 @@ header p { color: var(--muted); margin-top: 6px; }
   color: #1f2937;
 }
 .gear-menu button:hover { background: #e8efec; }
+.panel-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+.panel-head h2 { margin:0; }
+
 .panel {
   background: var(--card);
   border-radius: 14px;

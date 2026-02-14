@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Zeiterfassung</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -17,15 +18,16 @@
         <button type="button" id="toggleMenu" class="secondary gear-btn" title="Menü">⚙️</button>
         <div id="gearMenu" class="gear-menu" hidden>
           <button type="button" id="openWorkerConfig">Mitarbeiter verwalten</button>
-          <button type="button" id="backToHours" hidden>Zur Zeiterfassung zurück</button>
-          <button type="button" id="exportExcel">Monat als Excel (CSV) exportieren</button>
-          <button type="button" id="exportPdf">Monat als PDF exportieren</button>
+          <button type="button" id="openExportModal">Exporiteren</button>
         </div>
       </div>
     </header>
 
     <section class="panel" id="workerPanel" hidden>
-      <h2>Mitarbeiterverwaltung</h2>
+      <div class="panel-head">
+        <h2>Mitarbeiterverwaltung</h2>
+        <button type="button" id="backToHoursInline" class="secondary">← Zurück zur Zeiterfassung</button>
+      </div>
       <form id="workerForm" class="form-grid">
         <input type="hidden" id="workerId">
         <label>Vorname<input id="vorname" required></label>

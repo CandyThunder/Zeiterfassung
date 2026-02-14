@@ -12,9 +12,8 @@ const hoursPanel = document.getElementById('hoursPanel');
 const toggleMenu = document.getElementById('toggleMenu');
 const gearMenu = document.getElementById('gearMenu');
 const openWorkerConfig = document.getElementById('openWorkerConfig');
-const backToHours = document.getElementById('backToHours');
-const exportExcel = document.getElementById('exportExcel');
-const exportPdf = document.getElementById('exportPdf');
+const backToHoursInline = document.getElementById('backToHoursInline');
+const openExportModalBtn = document.getElementById('openExportModal');
 const exportModal = document.getElementById('exportModal');
 const exportMonth = document.getElementById('exportMonth');
 const exportWorker = document.getElementById('exportWorker');
@@ -94,7 +93,6 @@ function getSollHoursForPeriod(mode, ref, weeklySoll) {
 function showWorkerPanel(show) {
   workerPanel.hidden = !show;
   hoursPanel.hidden = show;
-  backToHours.hidden = !show;
   openWorkerConfig.hidden = show;
 }
 
@@ -418,9 +416,8 @@ function openExportModal() {
 
 toggleMenu.addEventListener('click', () => { gearMenu.hidden = !gearMenu.hidden; });
 openWorkerConfig.addEventListener('click', () => { showWorkerPanel(true); gearMenu.hidden = true; });
-backToHours.addEventListener('click', () => { showWorkerPanel(false); gearMenu.hidden = true; });
-exportExcel.addEventListener('click', () => { openExportModal(); gearMenu.hidden = true; });
-exportPdf.addEventListener('click', () => { openExportModal(); gearMenu.hidden = true; });
+backToHoursInline.addEventListener('click', () => { showWorkerPanel(false); });
+openExportModalBtn.addEventListener('click', () => { openExportModal(); gearMenu.hidden = true; });
 closeExportModal.addEventListener('click', () => { exportModal.hidden = true; });
 
 confirmExportExcel.addEventListener('click', async () => {
