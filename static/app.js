@@ -12,7 +12,6 @@ const hoursPanel = document.getElementById('hoursPanel');
 const toggleMenu = document.getElementById('toggleMenu');
 const gearMenu = document.getElementById('gearMenu');
 const openWorkerConfig = document.getElementById('openWorkerConfig');
-const backToHoursInline = document.getElementById('backToHoursInline');
 const openExportModalBtn = document.getElementById('openExportModal');
 const exportModal = document.getElementById('exportModal');
 const exportMonth = document.getElementById('exportMonth');
@@ -20,6 +19,7 @@ const exportWorker = document.getElementById('exportWorker');
 const confirmExportExcel = document.getElementById('confirmExportExcel');
 const confirmExportPdf = document.getElementById('confirmExportPdf');
 const closeExportModal = document.getElementById('closeExportModal');
+const backToHoursInline = document.getElementById('backToHoursInline');
 const dateInput = document.getElementById('datum');
 
 let workerMap = new Map();
@@ -32,6 +32,18 @@ function getTodayIsoDate() {
 function nowMonth() {
   const now = new Date();
   return `${now.getFullYear()}-${formatTwo(now.getMonth() + 1)}`;
+}
+function formatDateDE(iso) {
+  if (!iso) return '-';
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return iso;
+  return `${d}.${m}.${y}`;
+}
+function formatMonthLabelDE(yearMonth) {
+  const [year, month] = yearMonth.split('-').map(Number);
+  if (!year || !month) return yearMonth;
+  const label = new Date(year, month - 1, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function getIsoWeekString(date) {
@@ -64,7 +76,6 @@ function isWeekday(dateObj) {
   const day = dateObj.getDay();
   return day >= 1 && day <= 5;
 }
-
 function countWeekdaysInMonth(year, month) {
   let count = 0;
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -73,13 +84,11 @@ function countWeekdaysInMonth(year, month) {
   }
   return count;
 }
-
 function countWeekdaysInYear(year) {
   let count = 0;
   for (let m = 1; m <= 12; m += 1) count += countWeekdaysInMonth(year, m);
   return count;
 }
-
 function getSollHoursForPeriod(mode, ref, weeklySoll) {
   const dailySoll = weeklySoll / 5;
   if (!ref) return 0;
@@ -117,7 +126,6 @@ function calculateHours(entry) {
   const minutes = (end - start) / 60000 - (entry.pause_minuten || 0);
   return Math.max(0, minutes / 60);
 }
-
 function calculateAbwesenheitHours(entry, dailySoll) {
   if (!(entry.status === 'krank' || entry.status === 'urlaub')) return 0;
   const datum = new Date(`${entry.datum}T00:00:00`);
@@ -129,12 +137,13 @@ function renderWorkerOptions(workers) {
   const options = workers.map((w) => `<option value="${w.id}">${w.vorname} ${w.nachname}</option>`).join('');
   entryWorker.innerHTML = options;
   filterWorker.innerHTML = `<option value="">Alle Mitarbeiter</option>${options}`;
-  exportWorker.innerHTML = `<option value="">Alle Mitarbeiter</option>${options}`;
+  exportWorker.innerHTML = `<option value="" disabled selected>Mitarbeiter auswählen</option>${options}`;
 }
 
 async function loadWorkers() {
   const workers = await api('/api/workers');
   renderWorkerOptions(workers);
+  filterWorker.value = '';
   workerTable.innerHTML = workers.map((worker) => `
     <tr>
       <td>${worker.vorname} ${worker.nachname}</td>
@@ -191,25 +200,10 @@ document.getElementById('workerReset').addEventListener('click', () => {
 
 function getReferenceParams() { return { mode: viewMode.value, ref: viewReference.value }; }
 
-function renderSummary(entries, istHours, kontoHours) {
-  const statusCount = entries.reduce((acc, e) => {
-    acc[e.status] = (acc[e.status] || 0) + 1;
-    return acc;
-  }, {});
-  summary.innerHTML = `
-    <span class="badge">Einträge: ${entries.length}</span>
-    <span class="badge">Ist-Arbeitszeit: ${istHours.toFixed(2)} h</span>
-    <span class="badge">Zeitkonto: ${kontoHours.toFixed(2)} h</span>
-    <span class="badge">Anwesend: ${statusCount.anwesend || 0}</span>
-    <span class="badge">Krank: ${statusCount.krank || 0}</span>
-    <span class="badge">Urlaub: ${statusCount.urlaub || 0}</span>
-    <span class="badge">Frei: ${statusCount.frei || 0}</span>
-  `;
-}
-
 function buildTotals(entries, mode, ref, workerId) {
   const istHours = entries.reduce((sum, e) => sum + calculateHours(e), 0);
   if (!workerId) return { istHours, kontoHours: istHours, sollHours: null };
+
   const worker = workerMap.get(String(workerId));
   if (!worker) return { istHours, kontoHours: istHours, sollHours: null };
 
@@ -223,11 +217,27 @@ function buildTotals(entries, mode, ref, workerId) {
   };
 }
 
+function renderSummary(entries, istHours, kontoHours) {
+  const statusCount = entries.reduce((acc, e) => {
+    acc[e.status] = (acc[e.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  summary.innerHTML = `
+    <span class="badge">Einträge: ${entries.length}</span>
+    <span class="badge">Ist-Arbeitszeit: ${istHours.toFixed(2)} h</span>
+    <span class="badge">Zeitkonto: ${kontoHours.toFixed(2)} h</span>
+    <span class="badge">Anwesend: ${statusCount.anwesend || 0}</span>
+    <span class="badge">Krank: ${statusCount.krank || 0}</span>
+    <span class="badge">Urlaub: ${statusCount.urlaub || 0}</span>
+    <span class="badge">Frei: ${statusCount.frei || 0}</span>
+  `;
+}
+
 function renderSumRow(entries, mode, ref) {
   if (entries.length === 0) return '';
   const selectedWorker = filterWorker.value;
   const totals = buildTotals(entries, mode, ref, selectedWorker || null);
-
   if (!selectedWorker) {
     return `
       <tr class="sum-row">
@@ -238,16 +248,49 @@ function renderSumRow(entries, mode, ref) {
       </tr>
     `;
   }
-
-  const rowClass = totals.kontoHours - totals.sollHours >= 0 ? 'sum-row sum-positive' : 'sum-row sum-negative';
   return `
-    <tr class="${rowClass}">
+    <tr class="sum-row">
       <td colspan="6">Summe</td>
       <td>Ist: ${totals.istHours.toFixed(2)} h</td>
       <td>Konto: ${totals.kontoHours.toFixed(2)} h</td>
       <td>Soll: ${totals.sollHours.toFixed(2)} h</td>
     </tr>
   `;
+}
+
+function renderYearRows(entries) {
+  const byMonth = new Map();
+  entries.forEach((e) => {
+    const monthKey = e.datum.slice(0, 7);
+    if (!byMonth.has(monthKey)) {
+      byMonth.set(monthKey, {
+        datum: monthKey,
+        vorname: e.vorname,
+        nachname: e.nachname,
+        ist: 0,
+        statusCount: { anwesend: 0, krank: 0, urlaub: 0, frei: 0 },
+      });
+    }
+    const m = byMonth.get(monthKey);
+    m.ist += calculateHours(e);
+    m.statusCount[e.status] = (m.statusCount[e.status] || 0) + 1;
+  });
+
+  return Array.from(byMonth.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([, m]) => `
+      <tr>
+        <td>${formatMonthLabelDE(m.datum)}</td>
+        <td>${filterWorker.value ? `${m.vorname} ${m.nachname}` : 'Gemischt'}</td>
+        <td>-</td>
+        <td>-</td>
+        <td>-</td>
+        <td>-</td>
+        <td>${m.ist.toFixed(2)} h</td>
+        <td>Anwesend: ${m.statusCount.anwesend} | Krank: ${m.statusCount.krank} | Urlaub: ${m.statusCount.urlaub}</td>
+        <td>-</td>
+      </tr>
+    `).join('');
 }
 
 async function loadEntries() {
@@ -261,22 +304,24 @@ async function loadEntries() {
   const entries = await api(`/api/entries?${params.toString()}`);
   const totals = buildTotals(entries, mode, ref, workerId || null);
 
-  const bodyRows = entries.map((entry) => `
-    <tr>
-      <td>${entry.datum}</td>
-      <td>${entry.vorname} ${entry.nachname}</td>
-      <td><span class="status-pill status-${entry.status}">${entry.status}</span></td>
-      <td>${entry.startzeit || '-'}</td>
-      <td>${entry.endzeit || '-'}</td>
-      <td>${entry.pause_minuten || 0} min</td>
-      <td>${calculateHours(entry).toFixed(2)} h</td>
-      <td>${entry.notiz || '-'}</td>
-      <td class="small-actions">
-        <button onclick='editEntry(${JSON.stringify(entry)})'>Bearbeiten</button>
-        <button class='secondary' onclick='removeEntry(${entry.id})'>Löschen</button>
-      </td>
-    </tr>
-  `).join('');
+  const bodyRows = mode === 'jahr'
+    ? renderYearRows(entries)
+    : entries.map((entry) => `
+      <tr>
+        <td>${formatDateDE(entry.datum)}</td>
+        <td>${entry.vorname} ${entry.nachname}</td>
+        <td><span class="status-pill status-${entry.status}">${entry.status}</span></td>
+        <td>${entry.startzeit || '-'}</td>
+        <td>${entry.endzeit || '-'}</td>
+        <td>${entry.pause_minuten || 0} min</td>
+        <td>${calculateHours(entry).toFixed(2)} h</td>
+        <td>${entry.notiz || '-'}</td>
+        <td class="small-actions">
+          <button onclick='editEntry(${JSON.stringify(entry)})'>Bearbeiten</button>
+          <button class='secondary' onclick='removeEntry(${entry.id})'>Löschen</button>
+        </td>
+      </tr>
+    `).join('');
 
   entryTable.innerHTML = `${bodyRows}${renderSumRow(entries, mode, ref)}`;
   renderSummary(entries, totals.istHours, totals.kontoHours);
@@ -345,18 +390,23 @@ function downloadFile(filename, content, type) {
 }
 
 async function fetchExportEntries(month, workerId) {
-  const params = new URLSearchParams({ zeitraum: 'monat', referenz: month });
-  if (workerId) params.set('worker_id', workerId);
+  const params = new URLSearchParams({ zeitraum: 'monat', referenz: month, worker_id: workerId });
   return api(`/api/entries?${params.toString()}`);
 }
 
 function exportAsCsv(entries, month, workerId) {
-  const totals = buildTotals(entries, 'monat', month, workerId || null);
-  const lines = ['Datum;Mitarbeiter;Status;Start;Ende;Pause(min);Ist(h);Notiz'];
+  const worker = workerMap.get(String(workerId));
+  const workerName = `${worker.vorname} ${worker.nachname}`;
+  const totals = buildTotals(entries, 'monat', month, workerId);
+
+  const lines = [
+    `Zeiterfassung;${workerName};${formatMonthLabelDE(month)}`,
+    'Datum;Status;Start;Ende;Pause(min);Ist(h);Notiz',
+  ];
+
   for (const e of entries) {
     lines.push([
-      e.datum,
-      `${e.vorname} ${e.nachname}`,
+      formatDateDE(e.datum),
       e.status,
       e.startzeit || '',
       e.endzeit || '',
@@ -366,41 +416,45 @@ function exportAsCsv(entries, month, workerId) {
     ].join(';'));
   }
   lines.push('');
-  lines.push(`Summe;;;;;;Ist: ${totals.istHours.toFixed(2).replace('.', ',')};Konto: ${totals.kontoHours.toFixed(2).replace('.', ',')};Soll: ${totals.sollHours === null ? '-' : totals.sollHours.toFixed(2).replace('.', ',')}`);
-  downloadFile(`zeiterfassung_${month}.csv`, lines.join('\n'), 'text/csv;charset=utf-8;');
+  lines.push(`Summe;;;;;Ist: ${totals.istHours.toFixed(2).replace('.', ',')};Konto: ${totals.kontoHours.toFixed(2).replace('.', ',')} | Soll: ${totals.sollHours.toFixed(2).replace('.', ',')}`);
+  downloadFile(`zeiterfassung_${workerName.replace(/\s+/g, '_')}_${month}.csv`, lines.join('\n'), 'text/csv;charset=utf-8;');
 }
 
 function exportAsPdf(entries, month, workerId) {
-  const totals = buildTotals(entries, 'monat', month, workerId || null);
+  const worker = workerMap.get(String(workerId));
+  const workerName = `${worker.vorname} ${worker.nachname}`;
+  const totals = buildTotals(entries, 'monat', month, workerId);
+
   const rows = entries.map((e) => `
     <tr>
-      <td>${e.datum}</td><td>${e.vorname} ${e.nachname}</td><td>${e.status}</td>
-      <td>${e.startzeit || '-'}</td><td>${e.endzeit || '-'}</td><td>${e.pause_minuten || 0}</td>
+      <td>${formatDateDE(e.datum)}</td><td>${e.status}</td><td>${e.startzeit || '-'}</td>
+      <td>${e.endzeit || '-'}</td><td>${e.pause_minuten || 0}</td>
       <td>${calculateHours(e).toFixed(2)}</td><td>${e.notiz || '-'}</td>
     </tr>
   `).join('');
 
   const win = window.open('', '_blank');
   if (!win) return alert('Popup wurde blockiert. Bitte Popup-Freigabe aktivieren.');
-
   win.document.write(`
     <html lang="de"><head><title>Zeiterfassung ${month}</title>
       <style>
         @page { size: A4 landscape; margin: 10mm; }
         body { font-family: Arial, sans-serif; color: #1f2937; font-size: 11px; }
-        h1 { color: #1d4f45; margin: 0 0 10px; font-size: 20px; }
+        h1 { color: #1d4f45; margin: 0 0 6px; font-size: 18px; }
+        .meta { margin-bottom: 8px; font-size: 11px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #cfd8d6; padding: 4px 6px; text-align: left; font-size: 10px; }
         th { background: #eef7f4; }
         .sum { margin-top: 10px; font-weight: 700; }
       </style>
     </head><body>
-      <h1>Zeiterfassung ${month}</h1>
+      <h1>Zeiterfassung – ${workerName}</h1>
+      <div class="meta">Monat: ${formatMonthLabelDE(month)}</div>
       <table>
-        <thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Status</th><th>Start</th><th>Ende</th><th>Pause</th><th>Ist</th><th>Notiz</th></tr></thead>
+        <thead><tr><th>Datum</th><th>Status</th><th>Start</th><th>Ende</th><th>Pause</th><th>Ist</th><th>Notiz</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <div class="sum">Summe – Ist: ${totals.istHours.toFixed(2)} h | Konto: ${totals.kontoHours.toFixed(2)} h | Soll: ${totals.sollHours === null ? '-' : totals.sollHours.toFixed(2)} h</div>
+      <div class="sum">Summe – Ist: ${totals.istHours.toFixed(2)} h | Konto: ${totals.kontoHours.toFixed(2)} h | Soll: ${totals.sollHours.toFixed(2)} h</div>
     </body></html>
   `);
   win.document.close();
@@ -410,18 +464,19 @@ function exportAsPdf(entries, month, workerId) {
 
 function openExportModal() {
   exportMonth.value = viewMode.value === 'monat' && viewReference.value ? viewReference.value : nowMonth();
-  exportWorker.value = filterWorker.value || '';
+  exportWorker.value = '';
   exportModal.hidden = false;
 }
 
 toggleMenu.addEventListener('click', () => { gearMenu.hidden = !gearMenu.hidden; });
 openWorkerConfig.addEventListener('click', () => { showWorkerPanel(true); gearMenu.hidden = true; });
-backToHoursInline.addEventListener('click', () => { showWorkerPanel(false); });
 openExportModalBtn.addEventListener('click', () => { openExportModal(); gearMenu.hidden = true; });
+backToHoursInline.addEventListener('click', () => { showWorkerPanel(false); });
 closeExportModal.addEventListener('click', () => { exportModal.hidden = true; });
 
 confirmExportExcel.addEventListener('click', async () => {
   if (!exportMonth.value) return alert('Bitte Monat auswählen.');
+  if (!exportWorker.value) return alert('Bitte Mitarbeiter auswählen.');
   const entries = await fetchExportEntries(exportMonth.value, exportWorker.value);
   exportAsCsv(entries, exportMonth.value, exportWorker.value);
   exportModal.hidden = true;
@@ -429,6 +484,7 @@ confirmExportExcel.addEventListener('click', async () => {
 
 confirmExportPdf.addEventListener('click', async () => {
   if (!exportMonth.value) return alert('Bitte Monat auswählen.');
+  if (!exportWorker.value) return alert('Bitte Mitarbeiter auswählen.');
   const entries = await fetchExportEntries(exportMonth.value, exportWorker.value);
   exportAsPdf(entries, exportMonth.value, exportWorker.value);
   exportModal.hidden = true;

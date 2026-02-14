@@ -117,12 +117,11 @@ th { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-s
 .status-urlaub { background: #fef3c7; color: #92400e; }
 .status-frei { background: #e0e7ff; color: #3730a3; }
 .sum-row td {
-  background: #edf7f3;
+  background: #f7f8f9;
   font-weight: 700;
-  border-top: 2px solid #93c5b6;
+  border-top: 2px solid #d5dedb;
+  color: inherit;
 }
-.sum-positive td { color: #065f46; }
-.sum-negative td { color: #9a3412; background: #ffedd5; border-top-color: #fdba74; }
 @media (max-width: 768px) {
   .container { padding: 12px; }
   .panel { padding: 14px; }

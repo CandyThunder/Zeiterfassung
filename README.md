@@ -18,7 +18,8 @@ Moderne Anwendung zur Verwaltung von:
 - **Wöchentliche Ansicht korrigiert** (ISO-Kalenderwoche)
 - **Krank/Urlaub-Logik praxisnah**: nicht als Ist-Zeit, aber als angerechnete Abwesenheit im Zeitkonto
 - **Ruhiges Praxis-Design**: reduzierte, freundliche Farbgebung ohne Bilder
-- **Export pro Monat**: ein Menüpunkt „Exporiteren“ öffnet einen Dialog mit Monat+Mitarbeiter und Export als CSV oder PDF
+- **Export pro Monat**: ein Menüpunkt „Exporiteren“ öffnet einen Dialog mit Monat+verpflichtender Mitarbeiterwahl und Export als CSV oder PDF
+- **Deutsche Datumsdarstellung**: Anzeige und Exporte im Format `TT.MM.JJJJ`
 
 ## Muss Python installiert sein?
 
